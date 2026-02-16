@@ -89,6 +89,10 @@ class Perplexity:
         self.setup.usage = args.usage
         self.setup.citations = args.citations
         self.use_glow = args.glow
+        self.json_output = args.json
+        self.search_type = args.search_type
+        self.domain_filter = args.domain_filter
+        self.recency_filter = args.recency_filter
         if not args.api_key:
             api_key = ApiKeyValidator.get_api_key_from_system()
             if api_key is None:
@@ -115,6 +119,19 @@ class Perplexity:
                 {"role": "user", "content": message},
             ],
         }
+
+        web_search_options = {}
+        if self.search_type:
+            web_search_options["search_type"] = self.search_type
+        if self.domain_filter:
+            web_search_options["search_domain_filter"] = [
+                d.strip() for d in self.domain_filter.split(",")
+            ]
+        if self.recency_filter:
+            web_search_options["search_recency_filter"] = self.recency_filter
+        if web_search_options:
+            query_data["web_search_options"] = web_search_options
+
         logger.debug(f"Query data: {query_data}")
 
         response = requests.post(
@@ -123,6 +140,9 @@ class Perplexity:
 
         if response.status_code == 200:
             result = response.json()
+            if self.json_output:
+                print(json.dumps(result, indent=2))
+                return
             if self.setup.citations:
                 self._show_citations(result["citations"], self.use_glow)
             if self.setup.usage:
@@ -183,6 +203,36 @@ def main() -> None:
         f"Available models: {AVAILABLE_MODELS}",
         required=False,
         default="sonar-pro",
+    )
+    parser.add_argument(
+        "-s",
+        "--search-type",
+        type=str,
+        choices=["pro", "fast", "auto"],
+        help="Web search type (pro|fast|auto). Pro search only works with sonar-pro.",
+        required=False,
+    )
+    parser.add_argument(
+        "-d",
+        "--domain-filter",
+        type=str,
+        help="Comma-separated domains to include (or prefix with - to exclude). "
+        "Example: 'github.com,stackoverflow.com' or '-reddit.com,-quora.com'",
+        required=False,
+    )
+    parser.add_argument(
+        "-r",
+        "--recency-filter",
+        type=str,
+        choices=["day", "week", "month", "year"],
+        help="Filter results by recency (day|week|month|year)",
+        required=False,
+    )
+    parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Output raw JSON response instead of formatted text",
     )
     args = parser.parse_args()
     log_level = logging.DEBUG if args.verbose else logging.WARNING
