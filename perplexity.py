@@ -8,8 +8,8 @@ import requests
 import json
 
 AVAILABLE_MODELS = [
+    "sonar-deep-research",
     "sonar-reasoning-pro",
-    "sonar-reasoning",
     "sonar-pro",
     "sonar"
 ]
