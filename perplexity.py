@@ -261,11 +261,23 @@ class Perplexity:
             print(result)
 
 
+EXAMPLES = """\
+Examples:
+  perplexity "What is the meaning of life?"
+  perplexity "Explain Einstein's theory" -c -u
+  perplexity "Python async best practices" -d "github.com,stackoverflow.com"
+  perplexity "Latest AI news" -r week -c
+  perplexity "Who is president?" -j | jq .
+  perplexity "Explain quantum computing" -g
+"""
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         epilog=(
-            "Report bugs to: https://github.com/roboalchemist/perplexity-cli/issues\n"
-            "Homepage: https://github.com/roboalchemist/perplexity-cli"
+            EXAMPLES
+            + "\n"
+            + "Report bugs to: https://github.com/roboalchemist/perplexity-cli/issues\n"
+            + "Homepage: https://github.com/roboalchemist/perplexity-cli"
         ),
     )
     parser.add_argument("query", nargs="?", type=str, help="The query to process (not required with --docs)")
