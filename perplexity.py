@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 import logging
 import argparse
+import difflib
 import os
+import re
 import sys
 from dataclasses import dataclass
 import requests
@@ -53,6 +55,27 @@ class ApiKeyNotFoundException(Exception):
 
 class InvalidSelectedModelException(Exception):
     pass
+
+
+class SmartParser(argparse.ArgumentParser):
+    """ArgumentParser with fuzzy "did you mean?" suggestions for typos."""
+
+    def error(self, message):
+        if "unrecognized arguments" in message:
+            match = re.search(r"unrecognized arguments: (\S+)", message)
+            if match:
+                typo = match.group(1)
+                flags = []
+                for action in self._actions:
+                    flags.extend(action.option_strings)
+                matches = difflib.get_close_matches(typo, flags, n=1, cutoff=0.6)
+                if matches:
+                    suggestion = matches[0]
+                    sys.stderr.write(f"error: unrecognized arguments: {typo}\n")
+                    sys.stderr.write(f"Did you mean: {suggestion}?\n\n")
+                    self.print_help(sys.stderr)
+                    sys.exit(2)
+        super().error(message)
 
 
 def display(
@@ -272,7 +295,7 @@ Examples:
 """
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
+    parser = SmartParser(
         epilog=(
             EXAMPLES
             + "\n"
