@@ -272,19 +272,19 @@ def main() -> None:
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug mode")
     parser.add_argument("-u", "--usage", action="store_true", help="Show usage")
     parser.add_argument("-c", "--citations", action="store_true", help="Show citations")
-    parser.add_argument("-g", "--glow", action="store_true", help="Show citations")
+    parser.add_argument("-g", "--glow", action="store_true", help="Glow-compatible markdown output (# headers instead of ANSI)")
     parser.add_argument(
         "-a",
         "--api-key",
         type=str,
-        help="Description for api_key argument",
+        help="API key (default: PERPLEXITY_API_KEY env var)",
         required=False,
     )
     parser.add_argument(
         "-m",
         "--model",
         type=str,
-        help="Description for model argument (default: sonar-pro) "
+        help="Model name (default: sonar-pro) "
         f"Available models: {AVAILABLE_MODELS}",
         required=False,
         default="sonar-pro",
