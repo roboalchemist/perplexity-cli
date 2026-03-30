@@ -126,7 +126,7 @@ class TestPerplexityGetResponse:
         perp.get_response("test query")
 
         captured = capsys.readouterr()
-        assert "Invalid api key" in captured.out
+        assert "Invalid api key" in captured.err  # Error messages go to stderr
 
     @patch('perplexity.requests.post')
     def test_get_response_non_200_status(self, mock_post, mock_args):
@@ -198,7 +198,7 @@ class TestPerplexityOutputMethods:
         perp.get_response("test query")
 
         captured = capsys.readouterr()
-        assert "# Tokens" in captured.out
+        assert "# Tokens" in captured.err  # Usage stats go to stderr
 
     @patch('perplexity.requests.post')
     def test_show_citations_with_glow(self, mock_post, mock_args, mock_api_response, capsys):
@@ -214,7 +214,7 @@ class TestPerplexityOutputMethods:
         perp.get_response("test query")
 
         captured = capsys.readouterr()
-        assert "# Citations" in captured.out
+        assert "# Citations" in captured.err  # Citations go to stderr
 
     @patch('perplexity.requests.post')
     def test_show_content_with_glow(self, mock_post, mock_args, mock_api_response, capsys):
@@ -229,4 +229,4 @@ class TestPerplexityOutputMethods:
         perp.get_response("test query")
 
         captured = capsys.readouterr()
-        assert "# Content" in captured.out
+        assert "# Content" in captured.err  # Content header goes to stderr

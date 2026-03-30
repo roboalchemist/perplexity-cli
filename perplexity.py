@@ -47,9 +47,9 @@ def display(
         "white": "47",
     }
     if bold:
-        print(f"\033[1;{bg_colors[bg_color]};{colors[color]} {message}\033[0m")
+        print(f"\033[1;{bg_colors[bg_color]};{colors[color]} {message}\033[0m", file=sys.stderr)
     else:
-        print(f"\033[{bg_colors[bg_color]};{colors[color]} {message}\033[0m")
+        print(f"\033[{bg_colors[bg_color]};{colors[color]} {message}\033[0m", file=sys.stderr)
 
 
 @dataclass(frozen=True)
@@ -156,26 +156,26 @@ class Perplexity:
     @staticmethod
     def _show_usage(result: dict, use_glow: bool) -> None:
         if use_glow:
-            print("# Tokens")
+            print("# Tokens", file=sys.stderr)
         else:
             display("Tokens \n", "yellow", True, "blue")
         for token in result:
-            print(f"- {token}: {result[token]}")
-        print("\n")
+            print(f"- {token}: {result[token]}", file=sys.stderr)
+        print("\n", file=sys.stderr)
 
     @staticmethod
     def _show_citations(result: list, use_glow: bool) -> None:
         if use_glow:
-            print("# Citations")
+            print("# Citations", file=sys.stderr)
         else:
             display("Citations \n", "yellow", True, "blue")
         for element in result:
-            print(f"- {element}")
-        print("\n")
+            print(f"- {element}", file=sys.stderr)
+        print("\n", file=sys.stderr)
 
     def _show_content(self, result: str) -> None:
         if self.use_glow:
-            print("# Content")
+            print("# Content", file=sys.stderr)
         else:
             display("Content \n", "yellow", True, "blue")
         print(result)
