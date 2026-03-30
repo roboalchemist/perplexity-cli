@@ -39,6 +39,7 @@ def mock_args():
     mock.plaintext = False
     mock.quiet = False
     mock.silent = False
+    mock.output = None
     mock.search_type = None
     mock.domain_filter = None
     mock.recency_filter = None
