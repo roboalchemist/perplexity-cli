@@ -105,6 +105,7 @@ class Perplexity:
         self.setup.citations = args.citations
         self.use_glow = args.glow
         self.json_output = args.json
+        self.fields = args.fields.split(",") if args.fields else None
         self.plaintext = args.plaintext
         self.quiet = args.quiet or args.silent
         self.output_file = args.output
@@ -159,11 +160,17 @@ class Perplexity:
         if response.status_code == 200:
             result = response.json()
             if self.json_output:
+                if self.fields:
+                    # Filter result to only include specified fields
+                    filtered = {k: v for k, v in result.items() if k in self.fields}
+                    output = json.dumps(filtered, indent=2)
+                else:
+                    output = json.dumps(result, indent=2)
                 if self.output_file:
                     with open(self.output_file, "w") as f:
-                        f.write(json.dumps(result, indent=2))
+                        f.write(output)
                 else:
-                    print(json.dumps(result, indent=2))
+                    print(output)
                 return
             if self.setup.citations:
                 self._show_citations(result["citations"], self.use_glow, self.plaintext, self.quiet)
@@ -270,6 +277,13 @@ def main() -> None:
         "--json",
         action="store_true",
         help="Output raw JSON response instead of formatted text",
+    )
+    parser.add_argument(
+        "--fields",
+        type=str,
+        help="Comma-separated list of fields to include in JSON output "
+        "(e.g., --fields content,citations,usage). Use with --json.",
+        required=False,
     )
     parser.add_argument(
         "-p",
