@@ -181,6 +181,9 @@ class Perplexity:
             if self.json_output:
                 if self.fields:
                     # Filter result to only include specified fields
+                    missing = [f for f in self.fields if f not in result]
+                    if missing:
+                        print(f"--fields: not found at top level: {', '.join(missing)}", file=sys.stderr)
                     filtered = {k: v for k, v in result.items() if k in self.fields}
                     output = json.dumps(filtered, indent=2)
                 else:
