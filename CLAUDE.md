@@ -6,7 +6,7 @@ A single-file Python CLI tool that wraps the [Perplexity AI API](https://docs.pe
 
 - **Public repo**: `~/github/perplexity-cli` → `github.com/roboalchemist/perplexity-cli`
 - **Homebrew tap**: `roboalchemist/tap/perplexity-cli` (public tap at `github.com/roboalchemist/homebrew-tap`)
-- **Installed at**: `/opt/homebrew/bin/perplexity` (v1.0.0, Python 3.12)
+- **Installed at**: `/opt/homebrew/bin/perplexity` (via Homebrew)
 - **License**: MIT
 
 ---
@@ -15,12 +15,20 @@ A single-file Python CLI tool that wraps the [Perplexity AI API](https://docs.pe
 
 ```
 perplexity-cli/
-├── perplexity.py          # Entire CLI — single file, all logic here
-├── requirements.txt       # requests (only dependency)
+├── perplexity.py          # Entire CLI — single file, all logic (~420 lines)
+├── requirements.txt       # Runtime + test dependencies
+├── pytest.ini             # Pytest configuration
+├── Makefile               # Standard targets (build/test/test-unit/test-integration/...)
 ├── README.md
-├── .gitignore             # Standard Python gitignore
+├── llms.txt               # Agent-readable documentation index
 ├── docs/
 │   └── screen.png         # Screenshot used in README
+├── tests/
+│   ├── conftest.py        # Pytest fixtures (mock_args, mock_api_response, etc.)
+│   ├── test_api.py        # Unit tests for Perplexity class + API client
+│   ├── test_cli.py        # Integration tests (subprocess-based)
+│   ├── test_output.py     # Unit tests for display() formatting
+│   └── test_validators.py  # Unit tests for ModelValidator + ApiKeyValidator
 └── .github/
     └── workflows/
         └── bump-homebrew-tap.yml  # Auto-bumps formula on GitHub release
@@ -28,9 +36,9 @@ perplexity-cli/
 
 ---
 
-## Code Structure (AST)
+## Code Structure
 
-All logic lives in `perplexity.py` (~255 lines). No submodules, no packages.
+All logic lives in `perplexity.py` (~420 lines). No submodules, no packages.
 
 ### Classes
 
@@ -47,13 +55,23 @@ All logic lives in `perplexity.py` (~255 lines). No submodules, no packages.
 
 | Function | Location | Description |
 |----------|----------|-------------|
-| `display(message, color, bold, bg_color)` | module-level | ANSI color printing helper |
+| `get_version()` | module-level | Gets version from `git describe --tags`, falls back to "1.0.0" |
+| `display(message, color, bold, bg_color, plaintext)` | module-level | ANSI color printing helper; outputs to stderr |
 | `Perplexity.__init__(args)` | class | Validates model + API key, stores config |
 | `Perplexity.get_response(message)` | class | POSTs to API, handles response display |
-| `Perplexity._show_usage(result, use_glow)` | static | Renders token usage block |
-| `Perplexity._show_citations(result, use_glow)` | static | Renders citations block |
-| `Perplexity._show_content(result)` | instance | Renders answer content |
+| `Perplexity._show_usage(result, use_glow, plaintext, quiet)` | static | Renders token usage block to stderr |
+| `Perplexity._show_citations(result, use_glow, plaintext, quiet)` | static | Renders citations block to stderr |
+| `Perplexity._show_content(result)` | instance | Renders answer content to stdout |
 | `main()` | module-level | argparse entry point |
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | User error (invalid model, missing API key) |
+| 2 | Usage error (missing required argument) |
+| 3+ | System error (API failure, network issue, missing dependency) |
 
 ---
 
@@ -68,45 +86,97 @@ Positional:
   query                   The question/prompt to send
 
 Options:
-  -v, --verbose           Debug logging
-  -u, --usage             Show token usage stats
-  -c, --citations         Show source citations
-  -g, --glow              Glow-compatible markdown output (# headers instead of ANSI)
-  -a, --api-key           API key (default: $PERPLEXITY_API_KEY env var)
-  -m, --model             Model name (default: sonar-pro)
-  -s, --search-type       pro | fast | auto  (only pro works with sonar-pro)
-  -d, --domain-filter     Comma-separated domains to include/exclude (prefix '-' to exclude)
-  -r, --recency-filter    day | week | month | year
-  -j, --json              Output raw JSON response
+  -v, --verbose          Debug logging to stderr
+  -u, --usage            Show token usage stats
+  -c, --citations        Show source citations
+  -g, --glow             Glow-compatible markdown output (# headers instead of ANSI)
+  -a, --api-key          API key (default: $PERPLEXITY_API_KEY env var)
+  -m, --model            Model name (default: sonar-pro)
+  -s, --search-type      pro | fast | auto  (only pro works with sonar-pro)
+  -d, --domain-filter    Comma-separated domains to include/exclude (prefix '-' to exclude)
+  -r, --recency-filter   day | week | month | year
+  -j, --json             Output raw JSON response
+  --fields               Comma-separated fields to include in JSON output (with -j)
+  --jq                   Pipe JSON output through jq filter (requires jq binary)
+  -p, --plaintext        Disable ANSI formatting
+  -q, --quiet            Suppress usage and citations output
+  --silent               Alias for --quiet
+  -o, --output           Write output to file instead of stdout
+  --docs                 Print README to stdout and exit
+  -V, --version          Print version and exit
 ```
 
-### Available Models (as of Feb 2026)
+### Available Models
 
 ```python
-AVAILABLE_MODELS = [
+AVAILABLE_MODELS = sorted([
     "sonar-deep-research",
     "sonar-reasoning-pro",
-    "sonar-pro",      # default
+    "sonar-pro",  # default
     "sonar",
-]
+])
 ```
-
-> **Note**: The installed Homebrew version (v1.0.0) is stale — it still shows old `llama-3.1-sonar-*` model names. The repo `perplexity.py` is current.
 
 ---
 
 ## Dependencies
 
+### Runtime
+
 | Package | Version | Purpose |
 |---------|---------|---------|
 | `requests` | latest | HTTP POST to Perplexity API |
-| `argparse` | stdlib | CLI argument parsing |
-| `dataclasses` | stdlib | `ApiConfig` data container |
-| `json` | stdlib | Serialize request body, pretty-print raw response |
-| `logging` | stdlib | Debug output via `-v` |
-| `os` | stdlib | Read `PERPLEXITY_API_KEY` env var |
+
+Stdlib: `argparse`, `dataclasses`, `json`, `logging`, `os`, `subprocess`, `sys`
+
+### Testing
+
+| Package | Purpose |
+|---------|---------|
+| `pytest` | Test runner |
+| `pytest-cov` | Coverage reporting |
+| `pytest-mock` | Mock fixtures |
+| `responses` | HTTP mock library |
 
 **Python requirement**: 3.10+ (uses `str | None` union type syntax)
+
+---
+
+## Testing
+
+### Test Organization
+
+| File | Type | Coverage |
+|------|------|----------|
+| `tests/conftest.py` | Fixtures | `mock_args`, `mock_api_key`, `mock_api_response`, `valid_model`, `invalid_model` |
+| `tests/test_api.py` | Unit | Perplexity class init, get_response, web search options, output methods |
+| `tests/test_validators.py` | Unit | ModelValidator + ApiKeyValidator |
+| `tests/test_output.py` | Unit | display() ANSI formatting |
+| `tests/test_cli.py` | Integration | Subprocess tests for all CLI flags, exit codes, help/version/docs |
+
+### Makefile Targets
+
+| Target | Description |
+|--------|-------------|
+| `make build` | Validate Python syntax (`python3 -m py_compile`) |
+| `make test` | Run all tests (`pytest -v`) |
+| `make test-unit` | Unit tests only (validators, api, output) |
+| `make test-integration` | Integration tests only (CLI subprocess) |
+| `make deps` | `pip install -r requirements.txt` |
+| `make fmt` | `black perplexity.py tests/` |
+| `make lint` | `ruff check perplexity.py tests/` |
+| `make check` | `fmt + lint + test` |
+| `make clean` | Remove `__pycache__`, `.pytest_cache`, `.coverage`, etc. |
+| `make install` | `install -m 755 perplexity.py /usr/local/bin/perplexity` |
+| `make dev-install` | Symlink to `/usr/local/bin/` for development |
+
+### Smoke Test (Homebrew)
+
+```ruby
+test do
+  assert_match "usage:", shell_output("#{bin}/perplexity --help 2>&1")
+end
+```
 
 ---
 
@@ -138,7 +208,7 @@ pip install requests
 ```bash
 git clone git@github.com:roboalchemist/perplexity-cli.git
 cd perplexity-cli
-pip install requests
+pip install -r requirements.txt
 python perplexity.py "your query"
 ```
 
@@ -152,26 +222,6 @@ python perplexity.py "your query"
    - Clones `roboalchemist/homebrew-tap` using `HOMEBREW_TAP_TOKEN` secret
    - `sed`-patches `url`, `sha256`, and `version` in `Formula/perplexity-cli.rb`
    - Commits and pushes to the tap repo
-
-The `/brew-bump` skill can also do this manually.
-
----
-
-## Testing
-
-No test suite. The Homebrew formula has a smoke test:
-```ruby
-test do
-  assert_match "usage:", shell_output("#{bin}/perplexity --help 2>&1")
-end
-```
-
-**Manual smoke test**:
-```bash
-perplexity "hello" -m sonar
-perplexity "who wrote hamlet" -c -u -m sonar-pro
-perplexity "latest news" -r day -j | jq .
-```
 
 ---
 
@@ -192,6 +242,17 @@ perplexity "latest news" -r day -j | jq .
 | File | Purpose |
 |------|---------|
 | `perplexity.py` | **Everything** — CLI, API client, output formatting |
-| `requirements.txt` | `requests` only |
+| `requirements.txt` | Runtime + test dependencies |
+| `pytest.ini` | Pytest config (coverage options, testpaths) |
+| `Makefile` | Standard build/test targets |
+| `llms.txt` | Agent-readable doc index |
+| `docs/screen.png` | README screenshot |
 | `.github/workflows/bump-homebrew-tap.yml` | Auto-bump Homebrew formula on release |
 | `~/github/homebrew-tap/Formula/perplexity-cli.rb` | Homebrew formula (separate repo) |
+
+---
+
+## Relevant Documentation
+
+- `~/github/llm-code-docs/docs/web-scraped/requests/` — requests library docs
+- `~/github/llm-code-docs/docs/web-scraped/pytest/en/` — pytest docs
