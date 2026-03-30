@@ -14,6 +14,10 @@ AVAILABLE_MODELS = [
     "sonar"
 ]
 
+# Determine whether to emit ANSI escape sequences.
+# Disable if NO_COLOR is set (https://no-color.org/) or if stderr is not a TTY.
+_NO_ANSI = "NO_COLOR" in os.environ or not sys.stderr.isatty()
+
 # Exit codes: 0=success, 1=user error, 2=usage error, 3=system error
 EXIT_SUCCESS = 0
 EXIT_USER_ERROR = 1
@@ -52,7 +56,9 @@ def display(
         "blue": "44",
         "white": "47",
     }
-    if bold:
+    if _NO_ANSI:
+        print(message, file=sys.stderr)
+    elif bold:
         print(f"\033[1;{bg_colors[bg_color]};{colors[color]} {message}\033[0m", file=sys.stderr)
     else:
         print(f"\033[{bg_colors[bg_color]};{colors[color]} {message}\033[0m", file=sys.stderr)
@@ -188,7 +194,11 @@ class Perplexity:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Query Perplexity AI from the command line",
+        epilog="Report bugs to: https://github.com/roboalchemist/perplexity-cli/issues\n"
+                "Homepage: https://github.com/roboalchemist/perplexity-cli",
+    )
     parser.add_argument("query", type=str, help="The query to process")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug mode")
     parser.add_argument("-u", "--usage", action="store_true", help="Show usage")
