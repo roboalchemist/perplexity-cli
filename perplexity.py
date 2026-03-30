@@ -14,6 +14,10 @@ AVAILABLE_MODELS = [
     "sonar"
 ]
 
+# Determine whether to emit ANSI escape sequences.
+# Disable if NO_COLOR is set (https://no-color.org/) or if stderr is not a TTY.
+_NO_ANSI = "NO_COLOR" in os.environ or not sys.stderr.isatty()
+
 # Exit codes: 0=success, 1=user error, 2=usage error, 3=system error
 EXIT_SUCCESS = 0
 EXIT_USER_ERROR = 1
@@ -36,6 +40,7 @@ def display(
     color: str = "white",
     bold: bool = False,
     bg_color: str = "black",
+    plaintext: bool = False,
 ):
     colors = {
         "red": "91m",
@@ -52,7 +57,9 @@ def display(
         "blue": "44",
         "white": "47",
     }
-    if bold:
+    if _NO_ANSI or plaintext:
+        print(message, file=sys.stderr)
+    elif bold:
         print(f"\033[1;{bg_colors[bg_color]};{colors[color]} {message}\033[0m", file=sys.stderr)
     else:
         print(f"\033[{bg_colors[bg_color]};{colors[color]} {message}\033[0m", file=sys.stderr)
@@ -96,6 +103,8 @@ class Perplexity:
         self.setup.citations = args.citations
         self.use_glow = args.glow
         self.json_output = args.json
+        self.plaintext = args.plaintext
+        self.quiet = args.quiet or args.silent
         self.search_type = args.search_type
         self.domain_filter = args.domain_filter
         self.recency_filter = args.recency_filter
@@ -150,9 +159,9 @@ class Perplexity:
                 print(json.dumps(result, indent=2))
                 return
             if self.setup.citations:
-                self._show_citations(result["citations"], self.use_glow)
+                self._show_citations(result["citations"], self.use_glow, self.plaintext, self.quiet)
             if self.setup.usage:
-                self._show_usage(result["usage"], self.use_glow)
+                self._show_usage(result["usage"], self.use_glow, self.plaintext, self.quiet)
             self._show_content(result["choices"][0]["message"]["content"])
         elif response.status_code == 401:
             display("Invalid api key! ", "red")
@@ -160,9 +169,13 @@ class Perplexity:
             logger.error(f"Error: {response.status_code}")
 
     @staticmethod
-    def _show_usage(result: dict, use_glow: bool) -> None:
+    def _show_usage(result: dict, use_glow: bool, plaintext: bool = False, quiet: bool = False) -> None:
+        if quiet:
+            return
         if use_glow:
             print("# Tokens", file=sys.stderr)
+        elif plaintext:
+            print("Tokens:", file=sys.stderr)
         else:
             display("Tokens \n", "yellow", True, "blue")
         for token in result:
@@ -170,9 +183,13 @@ class Perplexity:
         print("\n", file=sys.stderr)
 
     @staticmethod
-    def _show_citations(result: list, use_glow: bool) -> None:
+    def _show_citations(result: list, use_glow: bool, plaintext: bool = False, quiet: bool = False) -> None:
+        if quiet:
+            return
         if use_glow:
             print("# Citations", file=sys.stderr)
+        elif plaintext:
+            print("Citations:", file=sys.stderr)
         else:
             display("Citations \n", "yellow", True, "blue")
         for element in result:
@@ -182,6 +199,8 @@ class Perplexity:
     def _show_content(self, result: str) -> None:
         if self.use_glow:
             print("# Content", file=sys.stderr)
+        elif self.plaintext:
+            pass  # No header in plaintext mode
         else:
             display("Content \n", "yellow", True, "blue")
         print(result)
@@ -239,6 +258,23 @@ def main() -> None:
         "--json",
         action="store_true",
         help="Output raw JSON response instead of formatted text",
+    )
+    parser.add_argument(
+        "-p",
+        "--plaintext",
+        action="store_true",
+        help="Output plain text without ANSI formatting",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress usage and citations output",
+    )
+    parser.add_argument(
+        "--silent",
+        action="store_true",
+        help="Suppress usage and citations output (same as --quiet)",
     )
     args = parser.parse_args()
     log_level = logging.DEBUG if args.verbose else logging.WARNING
