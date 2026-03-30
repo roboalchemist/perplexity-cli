@@ -7,12 +7,12 @@ from dataclasses import dataclass
 import requests
 import json
 
-AVAILABLE_MODELS = [
+AVAILABLE_MODELS = sorted([
     "sonar-deep-research",
     "sonar-reasoning-pro",
     "sonar-pro",
     "sonar"
-]
+])
 
 # Determine whether to emit ANSI escape sequences.
 # Disable if NO_COLOR is set (https://no-color.org/) or if stderr is not a TTY.
@@ -23,6 +23,8 @@ EXIT_SUCCESS = 0
 EXIT_USER_ERROR = 1
 EXIT_USAGE_ERROR = 2
 EXIT_SYSTEM_ERROR = 3
+
+VERSION = "1.0.0"
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +211,7 @@ class Perplexity:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("query", type=str, help="The query to process")
+    parser.add_argument("-V", "--version", action="version", version=f"perplexity {VERSION}")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug mode")
     parser.add_argument("-u", "--usage", action="store_true", help="Show usage")
     parser.add_argument("-c", "--citations", action="store_true", help="Show citations")
