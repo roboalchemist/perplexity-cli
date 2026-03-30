@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass
 import requests
 import json
+import subprocess
 
 AVAILABLE_MODELS = sorted([
     "sonar-deep-research",
@@ -106,6 +107,7 @@ class Perplexity:
         self.use_glow = args.glow
         self.json_output = args.json
         self.fields = args.fields.split(",") if args.fields else None
+        self.jq_filter = args.jq
         self.plaintext = args.plaintext
         self.quiet = args.quiet or args.silent
         self.output_file = args.output
@@ -169,6 +171,23 @@ class Perplexity:
                 if self.output_file:
                     with open(self.output_file, "w") as f:
                         f.write(output)
+                elif self.jq_filter:
+                    # Pipe output through jq
+                    try:
+                        proc = subprocess.run(
+                            ["jq", self.jq_filter],
+                            input=output,
+                            capture_output=True,
+                            text=True,
+                            check=True,
+                        )
+                        print(proc.stdout)
+                    except FileNotFoundError:
+                        display("jq is not installed. Install it from https://stedolan.github.io/jq/", "red")
+                        sys.exit(EXIT_SYSTEM_ERROR)
+                    except subprocess.CalledProcessError as e:
+                        display(f"jq error: {e.stderr}", "red")
+                        sys.exit(EXIT_SYSTEM_ERROR)
                 else:
                     print(output)
                 return
@@ -283,6 +302,13 @@ def main() -> None:
         type=str,
         help="Comma-separated list of fields to include in JSON output "
         "(e.g., --fields content,citations,usage). Use with --json.",
+        required=False,
+    )
+    parser.add_argument(
+        "--jq",
+        type=str,
+        help="Pipe JSON output through jq with the specified filter. "
+        "Requires jq to be installed.",
         required=False,
     )
     parser.add_argument(
