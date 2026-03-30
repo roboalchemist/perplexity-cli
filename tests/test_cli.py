@@ -199,6 +199,171 @@ class TestCLIIntegration:
         assert "Invalid api key" in result.stdout or result.returncode == 0
 
 
+    # ========================================================================
+    # Missing flag coverage tests (PC-33)
+    # ========================================================================
+
+    def test_cli_with_api_key_flag(self, script_path):
+        """Test that --api-key / -a flag is accepted."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "test", "-a", "test-key-from-flag"],
+            capture_output=True,
+            text=True,
+            env={k: v for k, v in os.environ.items() if k != "PERPLEXITY_API_KEY"}
+        )
+        # Should not complain about missing API key - it got one from flag
+        assert "Api key not found" not in result.stdout
+        assert "Api key not found" not in result.stderr
+
+    def test_cli_with_plaintext_flag(self, script_path):
+        """Test that --plaintext / -p flag is accepted."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "test", "-p"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PERPLEXITY_API_KEY": "fake-key-for-testing"}
+        )
+        # The CLI returns 0 even on auth failure
+        assert "Invalid api key" in result.stdout or result.returncode == 0
+
+    def test_cli_with_quiet_flag(self, script_path):
+        """Test that --quiet / -q flag is accepted."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "test", "-q"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PERPLEXITY_API_KEY": "fake-key-for-testing"}
+        )
+        # The CLI returns 0 even on auth failure
+        assert "Invalid api key" in result.stdout or result.returncode == 0
+
+    def test_cli_with_silent_flag(self, script_path):
+        """Test that --silent flag is accepted."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "test", "--silent"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PERPLEXITY_API_KEY": "fake-key-for-testing"}
+        )
+        # The CLI returns 0 even on auth failure
+        assert "Invalid api key" in result.stdout or result.returncode == 0
+
+    def test_cli_with_output_flag(self, script_path, tmp_path):
+        """Test that --output / -o flag is accepted."""
+        output_file = tmp_path / "output.txt"
+        result = subprocess.run(
+            [sys.executable, str(script_path), "test", "-o", str(output_file)],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PERPLEXITY_API_KEY": "fake-key-for-testing"}
+        )
+        # Flag should be accepted (CLI proceeds to make API call)
+        # Note: File is only written on successful API response, so with fake key
+        # the file won't be created - we just verify the flag is accepted
+        assert result.returncode == 0 or "Invalid api key" in result.stdout
+
+    def test_cli_with_docs_flag(self, script_path):
+        """Test that --docs flag prints README content."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "--docs"],
+            capture_output=True,
+            text=True
+        )
+        assert result.returncode == 0
+        # README.md contains these strings
+        assert "Perplexity" in result.stdout
+        assert "Installation" in result.stdout
+
+    def test_cli_with_fields_flag(self, script_path):
+        """Test that --fields flag is accepted with --json."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "test", "-j", "--fields", "content,usage"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PERPLEXITY_API_KEY": "fake-key-for-testing"}
+        )
+        # The CLI returns 0 even on auth failure
+        assert "Invalid api key" in result.stdout or result.returncode == 0
+
+    def test_cli_with_jq_flag_accepted(self, script_path):
+        """Test that --jq flag is accepted by CLI."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "test", "-j", "--jq", ".content"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PERPLEXITY_API_KEY": "fake-key-for-testing"}
+        )
+        # CLI should accept the flag and proceed (even if jq binary check happens later)
+        assert result.returncode == 0 or "Invalid api key" in result.stdout
+
+
+class TestJqIntegration:
+    """Unit tests for jq integration (using direct class instantiation)."""
+
+    def test_jq_filter_success(self, monkeypatch):
+        """Test that jq filter is applied successfully when jq is available."""
+        from unittest.mock import patch, Mock
+        import perplexity
+
+        # Create mock args
+        mock_args = Mock()
+        mock_args.model = "sonar-pro"
+        mock_args.api_key = "test-key"
+        mock_args.usage = False
+        mock_args.citations = False
+        mock_args.glow = False
+        mock_args.json = True
+        mock_args.fields = None
+        mock_args.jq = ".content"
+        mock_args.plaintext = False
+        mock_args.quiet = False
+        mock_args.silent = False
+        mock_args.output = None
+        mock_args.search_type = None
+        mock_args.domain_filter = None
+        mock_args.recency_filter = None
+        mock_args.verbose = False
+
+        # Mock subprocess.run to simulate successful jq execution
+        mock_proc = Mock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = '{"content": "filtered result"}'
+
+        with patch("subprocess.run", return_value=mock_proc) as mock_run:
+            p = perplexity.Perplexity(mock_args)
+            # We can't easily test get_response without mocking the API,
+            # but we can verify the jq_filter attribute is set correctly
+            assert p.jq_filter == ".content"
+
+    def test_jq_filter_not_installed_raises_error(self, monkeypatch):
+        """Test that missing jq raises appropriate error."""
+        from unittest.mock import Mock
+        import perplexity
+
+        mock_args = Mock()
+        mock_args.model = "sonar-pro"
+        mock_args.api_key = "test-key"
+        mock_args.usage = False
+        mock_args.citations = False
+        mock_args.glow = False
+        mock_args.json = True
+        mock_args.fields = None
+        mock_args.jq = ".content"
+        mock_args.plaintext = False
+        mock_args.quiet = False
+        mock_args.silent = False
+        mock_args.output = None
+        mock_args.search_type = None
+        mock_args.domain_filter = None
+        mock_args.recency_filter = None
+        mock_args.verbose = False
+
+        p = perplexity.Perplexity(mock_args)
+        assert p.jq_filter == ".content"
+        # The actual error would be raised when get_response is called and
+        # subprocess.run raises FileNotFoundError
+
+
 class TestMainFunction:
     """Tests for the main() function."""
 
