@@ -217,6 +217,9 @@ class TestMainFunctionPaths:
         # Also ensure no API key is set so we don't make actual API calls
         monkeypatch.delenv("PERPLEXITY_API_KEY", raising=False)
 
+        # Pretend stdin is a TTY so we skip stdin reading and go straight to error
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+
         with pytest.raises(SystemExit) as exc_info:
             perplexity.main()
         assert exc_info.value.code == 2
