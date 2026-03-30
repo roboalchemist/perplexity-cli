@@ -107,6 +107,7 @@ class Perplexity:
         self.json_output = args.json
         self.plaintext = args.plaintext
         self.quiet = args.quiet or args.silent
+        self.output_file = args.output
         self.search_type = args.search_type
         self.domain_filter = args.domain_filter
         self.recency_filter = args.recency_filter
@@ -158,7 +159,11 @@ class Perplexity:
         if response.status_code == 200:
             result = response.json()
             if self.json_output:
-                print(json.dumps(result, indent=2))
+                if self.output_file:
+                    with open(self.output_file, "w") as f:
+                        f.write(json.dumps(result, indent=2))
+                else:
+                    print(json.dumps(result, indent=2))
                 return
             if self.setup.citations:
                 self._show_citations(result["citations"], self.use_glow, self.plaintext, self.quiet)
@@ -205,7 +210,11 @@ class Perplexity:
             pass  # No header in plaintext mode
         else:
             display("Content \n", "yellow", True, "blue")
-        print(result)
+        if self.output_file:
+            with open(self.output_file, "w") as f:
+                f.write(result)
+        else:
+            print(result)
 
 
 def main() -> None:
@@ -278,6 +287,13 @@ def main() -> None:
         "--silent",
         action="store_true",
         help="Suppress usage and citations output (same as --quiet)",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        help="Write output to file instead of stdout",
+        required=False,
     )
     args = parser.parse_args()
     log_level = logging.DEBUG if args.verbose else logging.WARNING
