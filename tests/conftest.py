@@ -36,6 +36,7 @@ def mock_args():
     mock.citations = False
     mock.glow = False
     mock.json = False
+    mock.fields = None
     mock.plaintext = False
     mock.quiet = False
     mock.silent = False
