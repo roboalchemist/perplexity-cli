@@ -188,7 +188,12 @@ class Perplexity:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        epilog=(
+            "Report bugs to: https://github.com/roboalchemist/perplexity-cli/issues\n"
+            "Homepage: https://github.com/roboalchemist/perplexity-cli"
+        ),
+    )
     parser.add_argument("query", type=str, help="The query to process")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug mode")
     parser.add_argument("-u", "--usage", action="store_true", help="Show usage")
