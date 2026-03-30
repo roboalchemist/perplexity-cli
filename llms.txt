@@ -1,0 +1,165 @@
+# perplexity-cli
+
+> Command-line client for Perplexity AI API with web search, citations, and token usage tracking.
+
+## Overview
+
+Single-file Python CLI tool that wraps the Perplexity AI API (api.perplexity.ai). Users query Perplexity's web-grounded LLMs from the terminal and get formatted responses with optional citations, token usage stats, and search controls.
+
+## Key Files
+
+- `perplexity.py` - Main CLI implementation (all logic in ~255 lines)
+- `requirements.txt` - Dependencies (requests only)
+- `README.md` - User documentation and installation instructions
+- `CLAUDE.md` - Claude Code agent context (project structure, AST, API details)
+- `llms.txt` - This file (agent-readable documentation index)
+
+## CLI Usage
+
+```bash
+perplexity <query> [options]
+```
+
+### Positional Arguments
+
+- `query` - The question/prompt to send to Perplexity AI
+
+### Options
+
+- `-v, --verbose` - Enable debug logging
+- `-u, --usage` - Show token usage stats (prompt/totals/completion_cached)
+- `-c, --citations` - Show source citations (list of URLs)
+- `-g, --glow` - Glow-compatible markdown output (# headers instead of ANSI colors)
+- `-a, --api-key` - API key (default: $PERPLEXITY_API_KEY env var)
+- `-m, --model` - Model name (default: sonar-pro)
+- `-s, --search-type` - Web search type: pro | fast | auto (pro only works with sonar-pro)
+- `-d, --domain-filter` - Comma-separated domains to include/exclude (prefix '-' to exclude)
+  - Example: `github.com,stackoverflow.com` or `-reddit.com,-quora.com`
+- `-r, --recency-filter` - Filter by recency: day | week | month | year
+- `-j, --json` - Output raw JSON response instead of formatted text
+
+### Available Models
+
+- `sonar-deep-research` - Deep research model
+- `sonar-reasoning-pro` - Pro reasoning model
+- `sonar-pro` - Default model (pro search)
+- `sonar` - Standard model
+
+## API Reference
+
+### Endpoint
+
+```
+POST https://api.perplexity.ai/chat/completions
+```
+
+### Authentication
+
+- Bearer token in `Authorization` header
+- Set via `--api-key` flag or `PERPLEXITY_API_KEY` environment variable
+
+### Request Body
+
+```json
+{
+  "model": "sonar-pro",
+  "messages": [
+    {"role": "system", "content": "Be precise and concise."},
+    {"role": "user", "content": "<query>"}
+  ],
+  "web_search_options": {
+    "search_type": "pro|fast|auto",
+    "search_domain_filter": ["github.com", "stackoverflow.com"],
+    "search_recency_filter": "day|week|month|year"
+  }
+}
+```
+
+### Response
+
+```json
+{
+  "choices": [
+    {
+      "message": {
+        "content": "<answer>"
+      }
+    }
+  ],
+  "citations": ["https://...", ...],
+  "usage": {
+    "prompt_tokens": 123,
+    "completion_tokens": 456,
+    "total_tokens": 579
+  }
+}
+```
+
+## Configuration
+
+### Environment Variables
+
+- `PERPLEXITY_API_KEY` - Perplexity API key (required)
+
+### Installation
+
+Via Homebrew (primary method):
+```bash
+brew tap roboalchemist/tap
+brew install perplexity-cli
+```
+
+Manual install:
+```bash
+curl -s https://raw.githubusercontent.com/roboalchemist/perplexity-cli/main/perplexity.py > ~/.local/bin/perplexity
+chmod +x ~/.local/bin/perplexity
+pip install requests
+```
+
+## Examples
+
+```bash
+# Basic query
+perplexity "who wrote hamlet"
+
+# With citations and usage
+perplexity "latest AI developments" -c -u -m sonar-pro
+
+# Domain filter (only GitHub and Stack Overflow)
+perplexity "how to use python requests" -d "github.com,stackoverflow.com" -c
+
+# Recency filter (last week)
+perplexity "latest tech news" -r week -c
+
+# Raw JSON output
+perplexity "explain quantum computing" -j | jq .
+
+# Pro search with deep research model
+perplexity "research renewable energy trends" -m sonar-deep-research -s pro -c -u
+```
+
+## Project Structure
+
+- **Language**: Python 3.10+
+- **Dependencies**: requests (HTTP client)
+- **Architecture**: Single-file CLI (no modules, no packages)
+- **Entry Point**: `main()` function via `if __name__ == "__main__"`
+- **Classes**: `Perplexity` (main), `ApiConfig` (dataclass), `ModelValidator`, `ApiKeyValidator`
+- **License**: MIT
+- **Repository**: https://github.com/roboalchemist/perplexity-cli
+
+## Release Process
+
+1. Create GitHub release with version tag (e.g., v1.1.0)
+2. GitHub Action `.github/workflows/bump-homebrew-tap.yml` auto-bumps Homebrew formula
+3. Formula lives in `roboalchemist/tap` (separate repo)
+
+## Documentation Standards
+
+This project follows `/cli:qa` compliance standards for CLI tools:
+- Single-file implementation
+- Environment variable configuration
+- Standard flags (--help, --verbose, --json)
+- Clear error messages
+- MIT license
+- Public GitHub repo with Homebrew distribution
