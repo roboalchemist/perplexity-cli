@@ -421,6 +421,17 @@ def main() -> None:
 
     # Validate that query is provided when --docs is not used
     if args.query is None:
+        if not sys.stdin.isatty():
+            # Read queries from stdin, one per line
+            queries = [line.strip() for line in sys.stdin if line.strip()]
+            if not queries:
+                display("No queries provided via stdin", "red")
+                sys.exit(EXIT_USAGE_ERROR)
+            for q in queries:
+                print(f"\n--- Query: {q} ---\n")
+                perplexity = Perplexity(args)
+                perplexity.get_response(q)
+            return
         display("query is required (use --docs to show documentation)", "red")
         sys.exit(EXIT_USAGE_ERROR)
 
