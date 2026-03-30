@@ -75,6 +75,21 @@ perplexity -j "who is the president?" | jq .
 - `-d`, `--domain-filter`: Comma-separated domains to include/exclude (prefix `-` to exclude)
 - `-r`, `--recency-filter`: Recency filter — `day`, `week`, `month`, or `year`
 
+## Shell Completion
+
+For bash/zsh completion with argparse-based CLIs, install `argcomplete`:
+```bash
+pip install argcomplete
+eval "$(register-python-argcomplete perplexity)"
+```
+
+Or generate a completion script:
+```bash
+python3 -m argcomplete -t perplexity > ~/.bash_completion.d/perplexity
+```
+
+Note: This requires `argparse` with argument parser properly configured.
+
 ## Available Models
 - `sonar-deep-research`
 - `sonar-reasoning-pro`
