@@ -267,7 +267,7 @@ def main() -> None:
             "Homepage: https://github.com/roboalchemist/perplexity-cli"
         ),
     )
-    parser.add_argument("query", type=str, help="The query to process")
+    parser.add_argument("query", nargs="?", type=str, help="The query to process (not required with --docs)")
     parser.add_argument("-V", "--version", action="version", version=f"perplexity {VERSION}")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug mode")
     parser.add_argument("-u", "--usage", action="store_true", help="Show usage")
@@ -357,6 +357,11 @@ def main() -> None:
         help="Write output to file instead of stdout",
         required=False,
     )
+    parser.add_argument(
+        "--docs",
+        action="store_true",
+        help="Print README documentation and exit",
+    )
     args = parser.parse_args()
     log_level = logging.DEBUG if args.verbose else logging.WARNING
     logging.basicConfig(
@@ -365,6 +370,23 @@ def main() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logger.debug(f"args: {args}")
+
+    # Handle --docs flag (no API call needed)
+    if args.docs:
+        readme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "README.md")
+        try:
+            with open(readme_path, "r") as f:
+                print(f.read())
+        except FileNotFoundError:
+            display("README.md not found", "red")
+            sys.exit(EXIT_SYSTEM_ERROR)
+        sys.exit(EXIT_SUCCESS)
+
+    # Validate that query is provided when --docs is not used
+    if args.query is None:
+        display("query is required (use --docs to show documentation)", "red")
+        sys.exit(EXIT_USAGE_ERROR)
+
     try:
         perplexity = Perplexity(args)
         perplexity.get_response(args.query)
