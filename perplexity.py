@@ -200,11 +200,9 @@ class Perplexity:
                         )
                         print(proc.stdout)
                     except FileNotFoundError:
-                        display("jq is not installed. Install it from https://stedolan.github.io/jq/", "red")
-                        sys.exit(EXIT_SYSTEM_ERROR)
+                        raise SystemError("jq is not installed. Install from https://stedolan.github.io/jq/")
                     except subprocess.CalledProcessError as e:
-                        display(f"jq error: {e.stderr}", "red")
-                        sys.exit(EXIT_SYSTEM_ERROR)
+                        raise SystemError(f"jq error: {e.stderr}")
                 else:
                     print(output)
                 return
