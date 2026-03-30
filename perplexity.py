@@ -25,7 +25,24 @@ EXIT_USER_ERROR = 1
 EXIT_USAGE_ERROR = 2
 EXIT_SYSTEM_ERROR = 3
 
-VERSION = "1.0.0"
+
+def get_version() -> str:
+    """Get version from git tags, falling back to a default."""
+    try:
+        # Get git describe output (tag + number of commits since tag)
+        proc = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+        )
+        return proc.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "1.0.0"
+
+
+VERSION = get_version()
 
 logger = logging.getLogger(__name__)
 
