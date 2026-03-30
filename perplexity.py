@@ -14,6 +14,12 @@ AVAILABLE_MODELS = [
     "sonar"
 ]
 
+# Exit codes: 0=success, 1=user error, 2=usage error, 3=system error
+EXIT_SUCCESS = 0
+EXIT_USER_ERROR = 1
+EXIT_USAGE_ERROR = 2
+EXIT_SYSTEM_ERROR = 3
+
 logger = logging.getLogger(__name__)
 
 
@@ -245,9 +251,14 @@ def main() -> None:
     try:
         perplexity = Perplexity(args)
         perplexity.get_response(args.query)
+    except (InvalidSelectedModelException, ApiKeyNotFoundException) as e:
+        # User error - invalid model or missing API key
+        logger.debug(f"User error: {str(e)}")
+        sys.exit(EXIT_USER_ERROR)
     except Exception as e:
-        logger.debug(f"An error occurred: {str(e)}")
-        sys.exit(1)
+        # System error - API failure, network issue, etc.
+        logger.debug(f"System error: {str(e)}")
+        sys.exit(EXIT_SYSTEM_ERROR)
 
 
 if __name__ == "__main__":
