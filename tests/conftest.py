@@ -35,6 +35,7 @@ def mock_args():
     mock.usage = False
     mock.citations = False
     mock.glow = False
+    mock.plaintext = False
     mock.json = False
     mock.search_type = None
     mock.domain_filter = None

@@ -60,6 +60,12 @@ class TestPerplexityInit:
         perp = Perplexity(mock_args)
         assert perp.json_output is True
 
+    def test_init_with_plaintext_flag(self, mock_args):
+        """Test initialization with plaintext flag enabled."""
+        mock_args.plaintext = True
+        perp = Perplexity(mock_args)
+        assert perp.plaintext is True
+
     def test_init_with_usage_flag(self, mock_args):
         """Test initialization with usage flag enabled."""
         mock_args.usage = True
@@ -230,3 +236,61 @@ class TestPerplexityOutputMethods:
 
         captured = capsys.readouterr()
         assert "# Content" in captured.err  # Content header goes to stderr
+
+    @patch('perplexity.requests.post')
+    def test_show_usage_plaintext_tsv(self, mock_post, mock_args, mock_api_response, capsys):
+        """Test usage display in plaintext TSV format."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = mock_api_response
+        mock_post.return_value = mock_response
+
+        mock_args.usage = True
+        mock_args.plaintext = True
+        perp = Perplexity(mock_args)
+        perp.get_response("test query")
+
+        captured = capsys.readouterr()
+        # Each line should be key<tab>value with no prefix label
+        assert "prompt_tokens\t" in captured.err
+        assert "completion_tokens\t" in captured.err
+        assert "total_tokens\t" in captured.err
+        assert "# Tokens" not in captured.err  # No glow header in plaintext
+
+    @patch('perplexity.requests.post')
+    def test_show_citations_plaintext_tsv(self, mock_post, mock_args, mock_api_response, capsys):
+        """Test citations display in plaintext TSV format."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = mock_api_response
+        mock_post.return_value = mock_response
+
+        mock_args.citations = True
+        mock_args.plaintext = True
+        perp = Perplexity(mock_args)
+        perp.get_response("test query")
+
+        captured = capsys.readouterr()
+        # URLs should be printed directly, one per line
+        assert "https://example.com/source1" in captured.err
+        assert "https://example.com/source2" in captured.err
+        assert "# Citations" not in captured.err  # No glow header in plaintext
+
+    @patch('perplexity.requests.post')
+    def test_show_content_plaintext_no_ansi(self, mock_post, mock_args, mock_api_response, capsys):
+        """Test content display in plaintext outputs raw content with no ANSI codes."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = mock_api_response
+        mock_post.return_value = mock_response
+
+        mock_args.plaintext = True
+        perp = Perplexity(mock_args)
+        perp.get_response("test query")
+
+        captured = capsys.readouterr()
+        # Content goes to stdout; no ANSI color prefix in stderr
+        assert "This is a test response from Perplexity AI." in captured.out
+        # No ANSI escape sequences in output
+        assert "\033[" not in captured.out
+        assert "\033[" not in captured.err

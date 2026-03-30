@@ -124,6 +124,37 @@ class TestCLIIntegration:
         # The CLI returns 0 even on auth failure
         assert "Invalid api key" in result.stdout or result.returncode == 0
 
+    def test_cli_with_plaintext_flag(self, script_path):
+        """Test that plaintext flag is accepted."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "test", "-p"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PERPLEXITY_API_KEY": "fake-key-for-testing"}
+        )
+        # The CLI returns 0 even on auth failure
+        assert "Invalid api key" in result.stdout or result.returncode == 0
+
+    def test_cli_with_plaintext_long_flag(self, script_path):
+        """Test that --plaintext long flag is accepted."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "test", "--plaintext"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PERPLEXITY_API_KEY": "fake-key-for-testing"}
+        )
+        # The CLI returns 0 even on auth failure
+        assert "Invalid api key" in result.stdout or result.returncode == 0
+
+    def test_plaintext_flag_in_help(self, script_path):
+        """Test that plaintext flag is documented in --help."""
+        result = subprocess.run(
+            [sys.executable, str(script_path), "--help"],
+            capture_output=True,
+            text=True
+        )
+        assert "-p" in result.stdout or "--plaintext" in result.stdout
+
     def test_cli_with_search_type(self, script_path):
         """Test that search type flag is accepted."""
         result = subprocess.run(
