@@ -87,5 +87,7 @@ Set the `PERPLEXITY_API_KEY` environment variable with your Perplexity API key:
 export PERPLEXITY_API_KEY="your-api-key"
 ```
 
+For full configuration reference, see [docs/config.md](docs/config.md).
+
 ## License
 MIT
