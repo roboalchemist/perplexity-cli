@@ -268,7 +268,8 @@ def main() -> None:
         ),
     )
     parser.add_argument("query", nargs="?", type=str, help="The query to process (not required with --docs)")
-    parser.add_argument("-V", "--version", action="version", version=f"perplexity {VERSION}")
+    parser.add_argument("-V", "--version", action="version",
+        version=f"perplexity {VERSION}\nCopyright (C) 2024-2026 Roboalchemist")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug mode")
     parser.add_argument("-u", "--usage", action="store_true", help="Show usage")
     parser.add_argument("-c", "--citations", action="store_true", help="Show citations")
