@@ -10,6 +10,152 @@ import requests
 import json
 import subprocess
 
+SKILL_MD = """\
+---
+name: perplexity-cli
+description: CLI for Perplexity AI API with web search, citations, and token usage tracking.
+scope: both
+---
+
+# Perplexity CLI
+
+## Overview
+Single-file Python CLI wrapping the Perplexity AI API. Query web-grounded LLMs from the terminal with formatted output, citations, and search controls.
+
+## Commands
+
+### perplexity (default)
+Query Perplexity AI with optional filters and output controls.
+
+### perplexity skill print
+Print embedded skill documentation to stdout. Useful for installing the skill.
+
+### perplexity skill add
+Install the skill to ~/.claude/skills/perplexity-cli/SKILL.md
+
+## Options
+- `-v`, `--verbose`: Enable debug logging
+- `-u`, `--usage`: Show token usage statistics
+- `-c`, `--citations`: Show source citations
+- `-g`, `--glow`: Glow-compatible markdown output (# headers instead of ANSI)
+- `-j`, `--json`: Output raw JSON response
+- `-a API_KEY`, `--api-key API_KEY`: API key (defaults to PERPLEXITY_API_KEY env var)
+- `-m MODEL`, `--model MODEL`: Language model (default: sonar-pro)
+- `-s`, `--search-type`: Search type — pro, fast, or auto
+- `-d`, `--domain-filter`: Comma-separated domains to include/exclude
+- `-r`, `--recency-filter`: Recency filter — day, week, month, or year
+- `-p`, `--plaintext`: Output plain text without ANSI formatting
+- `-q`, `--quiet`: Suppress usage and citations output
+- `-o FILE`, `--output FILE`: Write output to file instead of stdout
+- `--docs`: Print README documentation and exit
+
+## Available Models
+- sonar-deep-research
+- sonar-reasoning-pro
+- sonar-pro (default)
+- sonar
+
+## Configuration
+Set PERPLEXITY_API_KEY environment variable with your API key:
+  export PERPLEXITY_API_KEY="your-api-key"
+
+## Examples
+  perplexity "What is the meaning of life?"
+  perplexity -uc "Explain Einstein's theory"
+  perplexity -m sonar-deep-research -r week "latest AI news"
+  perplexity -d "github.com,stackoverflow.com" "Python async best practices"
+  perplexity -j "who is the president?" | jq .
+"""
+
+README_EMBEDDED = """\
+# perplexity-cli
+
+## Overview
+Perplexity CLI is a command-line client for the Perplexity AI API, allowing users to query web-grounded LLMs directly from the terminal with formatted output, citations, and search controls.
+
+## Features
+- Easy querying of the Perplexity API with web-grounded answers
+- Support for multiple language models (sonar-pro, sonar-deep-research, etc.)
+- Optional display of token usage statistics
+- Optional display of source citations
+- Colorful output formatting (with glow support)
+- Search controls: recency filter, domain filter, search type
+- Raw JSON output mode
+- API key from environment variable or command-line argument
+
+## Requirements
+- Python 3.10+
+- requests library
+
+## Installation
+
+### Via Homebrew (recommended)
+```bash
+brew tap roboalchemist/tap
+brew install perplexity-cli
+export PERPLEXITY_API_KEY="your-api-key"
+```
+
+### Manual
+```bash
+curl -s https://raw.githubusercontent.com/roboalchemist/perplexity-cli/main/perplexity.py > ~/.local/bin/perplexity
+chmod +x ~/.local/bin/perplexity
+pip install requests
+export PERPLEXITY_API_KEY="your-api-key"
+```
+
+### From source
+```bash
+git clone https://github.com/roboalchemist/perplexity-cli.git
+cd perplexity-cli
+pip install requests
+python perplexity.py "your query"
+```
+
+## Usage
+```bash
+perplexity "What is the meaning of life?"
+```
+
+```bash
+# Show citations and token usage
+perplexity -uc "Explain Einstein's theory of relativity"
+
+# Use deep research model with recent results
+perplexity -m sonar-deep-research -r week "latest AI research breakthroughs"
+
+# Filter to specific domains
+perplexity -d "arxiv.org,nature.com" "quantum computing advances"
+
+# Exclude domains
+perplexity -d "-reddit.com" "Python async best practices"
+
+# Raw JSON output
+perplexity -j "who is the president?" | jq .
+```
+
+## Options
+- `-v`, `--verbose`: Enable debug logging
+- `-u`, `--usage`: Show token usage statistics
+- `-c`, `--citations`: Show source citations
+- `-g`, `--glow`: Use Glow-compatible markdown formatting (# headers instead of ANSI)
+- `-j`, `--json`: Output raw JSON response
+- `-a API_KEY`, `--api-key API_KEY`: API key (defaults to PERPLEXITY_API_KEY env var)
+- `-m MODEL`, `--model MODEL`: Language model (default: sonar-pro)
+- `-s`, `--search-type`: Search type — `pro`, `fast`, or `auto`
+- `-d`, `--domain-filter`: Comma-separated domains to include/exclude (prefix `-` to exclude)
+- `-r`, `--recency-filter`: Recency filter — `day`, `week`, `month`, or `year`
+
+## Available Models
+- `sonar-deep-research`
+- `sonar-reasoning-pro`
+- `sonar-pro` (default)
+- `sonar`
+
+## License
+MIT
+"""
+
 AVAILABLE_MODELS = sorted([
     "sonar-deep-research",
     "sonar-reasoning-pro",
@@ -294,7 +440,65 @@ Examples:
   perplexity "Explain quantum computing" -g
 """
 
+def skill_print() -> None:
+    """Print the embedded skill documentation to stdout."""
+    print(SKILL_MD)
+
+
+def skill_add() -> None:
+    """Install the skill to ~/.claude/skills/perplexity-cli/SKILL.md"""
+    skill_dir = os.path.expanduser("~/.claude/skills/perplexity-cli")
+    skill_path = os.path.join(skill_dir, "SKILL.md")
+
+    # Create directory if it doesn't exist
+    os.makedirs(skill_dir, exist_ok=True)
+
+    # Write the skill file
+    with open(skill_path, "w") as f:
+        f.write(SKILL_MD)
+
+    display(f"Skill installed to {skill_path}", "green")
+
+
+def handle_skill_command(args: list[str]) -> bool:
+    """Handle skill subcommand. Returns True if handled, False otherwise."""
+    if not args or args[0] != "skill":
+        return False
+
+    # Check for help flags
+    if len(args) > 1 and args[1] in ("-h", "--help"):
+        print("usage: perplexity skill [print|add]")
+        print("Skill management commands:")
+        print("  print    Print skill documentation to stdout")
+        print("  add      Install skill to ~/.claude/skills/")
+        return True
+
+    if len(args) == 1:
+        # Just "skill" - print help
+        print("usage: perplexity skill [print|add]")
+        print("Skill management commands:")
+        print("  print    Print skill documentation to stdout")
+        print("  add      Install skill to ~/.claude/skills/")
+        return True
+
+    skill_action = args[1]
+    if skill_action == "print":
+        skill_print()
+        return True
+    elif skill_action == "add":
+        skill_add()
+        return True
+    else:
+        display(f"Unknown skill action: {skill_action}", "red")
+        print("usage: perplexity skill [print|add]")
+        sys.exit(EXIT_USAGE_ERROR)
+
+
 def main() -> None:
+    # Handle skill subcommand before standard argparse processing
+    if handle_skill_command(sys.argv[1:]):
+        sys.exit(EXIT_SUCCESS)
+
     parser = SmartParser(
         epilog=(
             EXAMPLES
@@ -303,9 +507,13 @@ def main() -> None:
             + "Homepage: https://github.com/roboalchemist/perplexity-cli"
         ),
     )
-    parser.add_argument("query", nargs="?", type=str, help="The query to process (not required with --docs)")
+
+    # Add version argument
     parser.add_argument("-V", "--version", action="version",
         version=f"perplexity {VERSION}\nCopyright (C) 2024-2026 Roboalchemist")
+
+    parser.add_argument("query", nargs="?", type=str, help="The query to process (not required with --docs)")
+
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug mode")
     parser.add_argument("-u", "--usage", action="store_true", help="Show usage")
     parser.add_argument("-c", "--citations", action="store_true", help="Show citations")
@@ -419,7 +627,7 @@ def main() -> None:
             sys.exit(EXIT_SYSTEM_ERROR)
         sys.exit(EXIT_SUCCESS)
 
-    # Validate that query is provided when --docs is not used
+    # Validate that query is provided when --docs and skill are not used
     if args.query is None:
         if not sys.stdin.isatty():
             # Read queries from stdin, one per line
@@ -432,7 +640,7 @@ def main() -> None:
                 perplexity = Perplexity(args)
                 perplexity.get_response(q)
             return
-        display("query is required (use --docs to show documentation)", "red")
+        display("query is required (use --docs to show documentation, or 'perplexity skill --help')", "red")
         sys.exit(EXIT_USAGE_ERROR)
 
     try:
