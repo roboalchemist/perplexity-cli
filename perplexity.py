@@ -253,10 +253,26 @@ def main() -> None:
         perplexity.get_response(args.query)
     except (InvalidSelectedModelException, ApiKeyNotFoundException) as e:
         # User error - invalid model or missing API key
+        if args.json:
+            print(json.dumps({
+                "error": {
+                    "code": EXIT_USER_ERROR,
+                    "message": str(e),
+                    "type": "user_error"
+                }
+            }, indent=2), file=sys.stderr)
         logger.debug(f"User error: {str(e)}")
         sys.exit(EXIT_USER_ERROR)
     except Exception as e:
         # System error - API failure, network issue, etc.
+        if args.json:
+            print(json.dumps({
+                "error": {
+                    "code": EXIT_SYSTEM_ERROR,
+                    "message": str(e),
+                    "type": "system_error"
+                }
+            }, indent=2), file=sys.stderr)
         logger.debug(f"System error: {str(e)}")
         sys.exit(EXIT_SYSTEM_ERROR)
 
