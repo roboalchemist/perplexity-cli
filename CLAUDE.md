@@ -15,30 +15,33 @@ A single-file Python CLI tool that wraps the [Perplexity AI API](https://docs.pe
 
 ```
 perplexity-cli/
-├── perplexity.py          # Entire CLI — single file, all logic (~420 lines)
+├── perplexity.py          # Entire CLI — single file, all logic (~490 lines)
 ├── requirements.txt       # Runtime + test dependencies
-├── pytest.ini             # Pytest configuration
-├── Makefile               # Standard targets (build/test/test-unit/test-integration/...)
+├── pytest.ini            # Pytest configuration
+├── Makefile              # Standard targets (build/test/test-unit/test-integration/...)
 ├── README.md
-├── llms.txt               # Agent-readable documentation index
+├── CONTRIBUTING.md       # Release process and HOMEBREW_TAP_TOKEN docs
+├── llms.txt              # Agent-readable documentation index
 ├── docs/
-│   └── screen.png         # Screenshot used in README
+│   ├── config.md         # Full config/envvar/exit-code documentation
+│   └── screen.png       # Screenshot used in README
 ├── tests/
-│   ├── conftest.py        # Pytest fixtures (mock_args, mock_api_response, etc.)
-│   ├── test_api.py        # Unit tests for Perplexity class + API client
-│   ├── test_cli.py        # Integration tests (subprocess-based)
-│   ├── test_output.py     # Unit tests for display() formatting
-│   └── test_validators.py  # Unit tests for ModelValidator + ApiKeyValidator
+│   ├── conftest.py                    # Pytest fixtures
+│   ├── test_api.py                    # Unit tests for Perplexity class
+│   ├── test_cli.py                    # Integration tests (subprocess-based)
+│   ├── test_coverage_improvements.py  # Coverage gap tests
+│   ├── test_output.py                 # Unit tests for display() formatting
+│   └── test_validators.py             # Unit tests for validators
 └── .github/
     └── workflows/
-        └── bump-homebrew-tap.yml  # Auto-bumps formula on GitHub release
+        └── bump-tap.yml              # Auto-bumps Homebrew tap on release
 ```
 
 ---
 
 ## Code Structure
 
-All logic lives in `perplexity.py` (~420 lines). No submodules, no packages.
+All logic lives in `perplexity.py` (~490 lines). No submodules, no packages.
 
 ### Classes
 
@@ -49,6 +52,7 @@ All logic lives in `perplexity.py` (~420 lines). No submodules, no packages.
 | `ApiConfig` | `@dataclass(frozen=True)` | Config container: url, api_key, usage, citations, model |
 | `ModelValidator` | Plain class | Static methods: `validate(model)`, `get_AVAILABLE_MODELS()` |
 | `ApiKeyValidator` | Plain class | Static method: `get_api_key_from_system()` (reads `$PERPLEXITY_API_KEY`) |
+| `SmartParser` | `argparse.ArgumentParser` subclass | Adds fuzzy "did you mean?" suggestions for flag typos |
 | `Perplexity` | Main class | Initialized with parsed args; handles full request/response lifecycle |
 
 ### Key Functions
@@ -57,12 +61,15 @@ All logic lives in `perplexity.py` (~420 lines). No submodules, no packages.
 |----------|----------|-------------|
 | `get_version()` | module-level | Gets version from `git describe --tags`, falls back to "1.0.0" |
 | `display(message, color, bold, bg_color, plaintext)` | module-level | ANSI color printing helper; outputs to stderr |
+| `skill_print()` | module-level | Prints embedded SKILL_MD to stdout |
+| `skill_add()` | module-level | Installs SKILL.md to ~/.claude/skills/perplexity-cli/ |
+| `handle_skill_command(args)` | module-level | Pre-parses "skill print/add" before argparse; returns bool |
 | `Perplexity.__init__(args)` | class | Validates model + API key, stores config |
 | `Perplexity.get_response(message)` | class | POSTs to API, handles response display |
 | `Perplexity._show_usage(result, use_glow, plaintext, quiet)` | static | Renders token usage block to stderr |
 | `Perplexity._show_citations(result, use_glow, plaintext, quiet)` | static | Renders citations block to stderr |
 | `Perplexity._show_content(result)` | instance | Renders answer content to stdout |
-| `main()` | module-level | argparse entry point |
+| `main()` | module-level | argparse entry point; handles stdin batch mode |
 
 ### Exit Codes
 
@@ -104,6 +111,21 @@ Options:
   -o, --output           Write output to file instead of stdout
   --docs                 Print README to stdout and exit
   -V, --version          Print version and exit
+```
+
+### Skill Subcommands
+
+```
+perplexity skill print    # Print embedded skill documentation to stdout
+perplexity skill add      # Install skill to ~/.claude/skills/
+```
+
+### Stdin Batch Mode
+
+When `query` is omitted and stdin is not a TTY, reads queries line-by-line and processes each:
+
+```bash
+echo -e "query one\nquery two" | perplexity
 ```
 
 ### Available Models
@@ -153,6 +175,7 @@ Stdlib: `argparse`, `dataclasses`, `json`, `logging`, `os`, `subprocess`, `sys`
 | `tests/test_validators.py` | Unit | ModelValidator + ApiKeyValidator |
 | `tests/test_output.py` | Unit | display() ANSI formatting |
 | `tests/test_cli.py` | Integration | Subprocess tests for all CLI flags, exit codes, help/version/docs |
+| `tests/test_coverage_improvements.py` | Unit | Coverage gap tests: SmartParser, skill commands, stdin batch, edge cases |
 
 ### Makefile Targets
 
@@ -217,7 +240,7 @@ python perplexity.py "your query"
 ## Release Process
 
 1. Create a GitHub release with a version tag (e.g., `v1.1.0`)
-2. The `.github/workflows/bump-homebrew-tap.yml` workflow fires automatically:
+2. The `.github/workflows/bump-tap.yml` workflow fires automatically:
    - Downloads the release tarball, computes SHA256
    - Clones `roboalchemist/homebrew-tap` using `HOMEBREW_TAP_TOKEN` secret
    - `sed`-patches `url`, `sha256`, and `version` in `Formula/perplexity-cli.rb`
@@ -245,9 +268,11 @@ python perplexity.py "your query"
 | `requirements.txt` | Runtime + test dependencies |
 | `pytest.ini` | Pytest config (coverage options, testpaths) |
 | `Makefile` | Standard build/test targets |
+| `CONTRIBUTING.md` | Release process and HOMEBREW_TAP_TOKEN setup |
 | `llms.txt` | Agent-readable doc index |
+| `docs/config.md` | Config/envvar/exit-code documentation |
 | `docs/screen.png` | README screenshot |
-| `.github/workflows/bump-homebrew-tap.yml` | Auto-bump Homebrew formula on release |
+| `.github/workflows/bump-tap.yml` | Auto-bump Homebrew tap on release |
 | `~/github/homebrew-tap/Formula/perplexity-cli.rb` | Homebrew formula (separate repo) |
 
 ---
