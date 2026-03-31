@@ -48,7 +48,7 @@ class TestApiKeyValidator:
 
     def test_get_api_key_from_system_when_set(self, monkeypatch):
         """Test retrieving API key when environment variable is set."""
-        test_key = "my-PLACEHOLDER-API-KEY"
+        test_key = "test-key-placeholder"
         monkeypatch.setenv("PERPLEXITY_API_KEY", test_key)
         assert ApiKeyValidator.get_api_key_from_system() == test_key
 

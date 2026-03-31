@@ -10,8 +10,8 @@ import os
 @pytest.fixture
 def mock_api_key(monkeypatch):
     """Fixture to mock the PERPLEXITY_API_KEY environment variable."""
-    monkeypatch.setenv("PERPLEXITY_API_KEY", "PLACEHOLDER-API-KEY")
-    return "PLACEHOLDER-API-KEY"
+    monkeypatch.setenv("PERPLEXITY_API_KEY", "test-key-placeholder")
+    return "test-key-placeholder"
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def mock_args():
     """Create mock argparse namespace with default values."""
     mock = Mock()
     mock.model = "sonar-pro"
-    mock.api_key = "PLACEHOLDER-API-KEY"
+    mock.api_key = "test-key-placeholder"
     mock.usage = False
     mock.citations = False
     mock.glow = False

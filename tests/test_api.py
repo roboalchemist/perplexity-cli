@@ -14,7 +14,7 @@ class TestPerplexityInit:
         """Test successful initialization with valid model and API key."""
         perp = Perplexity(mock_args)
         assert perp.setup.model == "sonar-pro"
-        assert perp.setup.api_key == "PLACEHOLDER-API-KEY"
+        assert perp.setup.api_key == "test-key-placeholder"
         assert perp.setup.usage is False
         assert perp.setup.citations is False
 
