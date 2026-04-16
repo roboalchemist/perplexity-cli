@@ -4,8 +4,12 @@ import argparse
 import difflib
 import os
 import re
+import socket
 import sys
+import time
+import tomllib
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import requests
 import json
 import subprocess
@@ -13,14 +17,14 @@ import subprocess
 SKILL_MD = """\
 ---
 name: perplexity-cli
-description: CLI for Perplexity AI API with web search, citations, and token usage tracking.
+description: CLI for Perplexity AI API with web search, citations, token usage tracking, and history logging.
 scope: both
 ---
 
 # Perplexity CLI
 
 ## Overview
-Single-file Python CLI wrapping the Perplexity AI API. Query web-grounded LLMs from the terminal with formatted output, citations, and search controls.
+Single-file Python CLI wrapping the Perplexity AI API. Query web-grounded LLMs from the terminal with formatted output, citations, search controls, and optional history logging.
 
 ## Commands
 
@@ -47,6 +51,7 @@ Install the skill to ~/.claude/skills/perplexity-cli/SKILL.md
 - `-p`, `--plaintext`: Output plain text without ANSI formatting
 - `-q`, `--quiet`: Suppress usage and citations output
 - `-o FILE`, `--output FILE`: Write output to file instead of stdout
+- `--no-history`: Skip history logging for this invocation
 - `--docs`: Print README documentation and exit
 
 ## Available Models
@@ -59,19 +64,31 @@ Install the skill to ~/.claude/skills/perplexity-cli/SKILL.md
 Set PERPLEXITY_API_KEY environment variable with your API key:
   export PERPLEXITY_API_KEY="your-api-key"
 
+Optional config file at ~/.config/perplexity-cli/config.toml:
+  history_enabled = true     # enable history logging (default: false)
+  default_format = "json"    # default output format (json or plaintext)
+
+## History Logging
+When history_enabled = true in config, each query is saved to:
+  ~/.config/perplexity-cli/history/<year>/<month>/<day>/<HH-MM-SS>_<slug>_<hostname>.json
+
+Each file contains: timestamp, hostname, command, params, response, latency_ms.
+Use --no-history to skip logging for a single invocation.
+
 ## Examples
   perplexity "What is the meaning of life?"
   perplexity -uc "Explain Einstein's theory"
   perplexity -m sonar-deep-research -r week "latest AI news"
   perplexity -d "github.com,stackoverflow.com" "Python async best practices"
   perplexity -j "who is the president?" | jq .
+  perplexity --no-history "sensitive query"
 """
 
 README_EMBEDDED = """\
 # perplexity-cli
 
 ## Overview
-Perplexity CLI is a command-line client for the Perplexity AI API, allowing users to query web-grounded LLMs directly from the terminal with formatted output, citations, and search controls.
+Perplexity CLI is a command-line client for the Perplexity AI API, allowing users to query web-grounded LLMs directly from the terminal with formatted output, citations, search controls, and optional history logging.
 
 ## Features
 - Easy querying of the Perplexity API with web-grounded answers
@@ -82,9 +99,11 @@ Perplexity CLI is a command-line client for the Perplexity AI API, allowing user
 - Search controls: recency filter, domain filter, search type
 - Raw JSON output mode
 - API key from environment variable or command-line argument
+- Config file support (`~/.config/perplexity-cli/config.toml`)
+- History logging to `~/.config/perplexity-cli/history/`
 
 ## Requirements
-- Python 3.10+
+- Python 3.11+
 - requests library
 
 ## Installation
@@ -132,6 +151,9 @@ perplexity -d "-reddit.com" "Python async best practices"
 
 # Raw JSON output
 perplexity -j "who is the president?" | jq .
+
+# Skip history logging for a single invocation
+perplexity --no-history "sensitive query"
 ```
 
 ## Options
@@ -145,12 +167,43 @@ perplexity -j "who is the president?" | jq .
 - `-s`, `--search-type`: Search type — `pro`, `fast`, or `auto`
 - `-d`, `--domain-filter`: Comma-separated domains to include/exclude (prefix `-` to exclude)
 - `-r`, `--recency-filter`: Recency filter — `day`, `week`, `month`, or `year`
+- `--no-history`: Skip history logging for this invocation
 
 ## Available Models
 - `sonar-deep-research`
 - `sonar-reasoning-pro`
 - `sonar-pro` (default)
 - `sonar`
+
+## Config & History
+
+### Config file
+Create `~/.config/perplexity-cli/config.toml` to set persistent defaults:
+
+```toml
+history_enabled = true      # enable history logging (default: false)
+default_format = "json"     # default output format: "json" or "plaintext"
+```
+
+Config values are overridden by CLI flags (CLI flag > config > hardcoded default).
+A missing or malformed config file is silently ignored.
+
+### History logging
+When `history_enabled = true`, each successful query is saved as a JSON file:
+
+```
+~/.config/perplexity-cli/history/<year>/<month>/<day>/<HH-MM-SS>_<slug>_<hostname>.json
+```
+
+Each file contains:
+- `timestamp` — ISO 8601 UTC
+- `hostname` — machine that made the request
+- `command` — always `"query"`
+- `params` — query string, model, and search options
+- `response` — full Perplexity API response
+- `latency_ms` — round-trip time in milliseconds
+
+Use `--no-history` to skip logging for a single invocation.
 
 ## License
 MIT
@@ -162,6 +215,86 @@ AVAILABLE_MODELS = sorted([
     "sonar-pro",
     "sonar"
 ])
+
+logger = logging.getLogger(__name__)
+
+CONFIG_DIR = os.path.expanduser("~/.config/perplexity-cli")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.toml")
+
+
+def load_config() -> dict:
+    """Load configuration from ~/.config/perplexity-cli/config.toml.
+
+    Returns an empty dict if the file does not exist or cannot be parsed.
+    """
+    if not os.path.exists(CONFIG_FILE):
+        return {}
+    try:
+        with open(CONFIG_FILE, "rb") as f:
+            return tomllib.load(f)
+    except Exception as e:
+        logger.warning("Could not read config file %s: %s", CONFIG_FILE, e)
+        return {}
+
+
+def make_slug(query: str) -> str:
+    """Generate a short filesystem-safe slug from a query string."""
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", query).strip("-")
+    return slug[:40]
+
+
+def write_history(
+    command: str,
+    params: dict,
+    response: dict,
+    latency_ms: int,
+    history_enabled: bool = False,
+    no_history: bool = False,
+) -> None:
+    """Write an API call to the history log under ~/.config/perplexity-cli/history/.
+
+    No-ops when history is disabled or --no-history was passed.
+    """
+    if not history_enabled or no_history:
+        return
+
+    now = datetime.now(timezone.utc)
+    timestamp = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
+    year = now.strftime("%Y")
+    month = now.strftime("%m")
+    day = now.strftime("%d")
+    time_part = now.strftime("%H-%M-%S")
+
+    slug = make_slug(params.get("query", ""))
+    hostname = socket.gethostname()
+    safe_host = re.sub(r"[^a-zA-Z0-9._-]", "-", hostname)
+
+    history_dir = os.path.join(CONFIG_DIR, "history", year, month, day)
+    os.makedirs(history_dir, exist_ok=True)
+
+    filename = f"{time_part}_{slug}_{safe_host}.json"
+    filepath = os.path.join(history_dir, filename)
+
+    # Sanitize params — remove api_key if somehow present
+    clean_params = {k: v for k, v in params.items() if k != "api_key"}
+
+    envelope = {
+        "timestamp": timestamp,
+        "hostname": hostname,
+        "command": command,
+        "params": clean_params,
+        "response": response,
+        "latency_ms": latency_ms,
+    }
+
+    try:
+        with open(filepath, "w") as f:
+            json.dump(envelope, f, indent=2)
+        logger.debug("History written to %s", filepath)
+        print(f"[history] {filepath}", file=sys.stderr)
+    except Exception as e:
+        logger.warning("Could not write history file %s: %s", filepath, e)
+
 
 # Determine whether to emit ANSI escape sequences.
 # Disable if NO_COLOR is set (https://no-color.org/) or if stderr is not a TTY.
@@ -191,8 +324,6 @@ def get_version() -> str:
 
 
 VERSION = get_version()
-
-logger = logging.getLogger(__name__)
 
 
 class ApiKeyNotFoundException(Exception):
@@ -300,6 +431,8 @@ class Perplexity:
         self.search_type = args.search_type
         self.domain_filter = args.domain_filter
         self.recency_filter = args.recency_filter
+        self.history_enabled = getattr(args, "history_enabled", False)
+        self.no_history = getattr(args, "no_history", False)
         if not args.api_key:
             api_key = ApiKeyValidator.get_api_key_from_system()
             if api_key is None:
@@ -341,12 +474,26 @@ class Perplexity:
 
         logger.debug(f"Query data: {query_data}")
 
+        t0 = time.monotonic()
         response = requests.post(
             self.setup.api_url, headers=headers, data=json.dumps(query_data)
         )
+        latency_ms = int((time.monotonic() - t0) * 1000)
 
         if response.status_code == 200:
             result = response.json()
+            # Record history after a successful API call
+            history_params = {"query": message, "model": self.setup.model}
+            if web_search_options:
+                history_params.update(web_search_options)
+            write_history(
+                command="query",
+                params=history_params,
+                response=result,
+                latency_ms=latency_ms,
+                history_enabled=self.history_enabled,
+                no_history=self.no_history,
+            )
             if self.json_output:
                 if self.fields:
                     # Filter result to only include specified fields
@@ -603,6 +750,12 @@ def main() -> None:
         required=False,
     )
     parser.add_argument(
+        "--no-history",
+        action="store_true",
+        default=False,
+        help="Skip history logging for this invocation",
+    )
+    parser.add_argument(
         "--docs",
         action="store_true",
         help="Print README documentation and exit",
@@ -615,6 +768,18 @@ def main() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     logger.debug(f"args: {args}")
+
+    # Load config file and apply defaults (CLI flag > config > hardcoded default)
+    config = load_config()
+    args.history_enabled = config.get("history_enabled", False)
+
+    # Apply default_format from config if not already set by flags
+    if not args.json and not args.plaintext:
+        default_format = config.get("default_format", None)
+        if default_format == "json":
+            args.json = True
+        elif default_format == "plaintext":
+            args.plaintext = True
 
     # Handle --docs flag (no API call needed)
     if args.docs:

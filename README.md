@@ -11,9 +11,11 @@ Perplexity CLI is a simple command-line client for the Perplexity AI API, allowi
 - Search controls: recency filter, domain filter, search type
 - Raw JSON output mode
 - API key from environment variable or command-line argument
+- Config file support (`~/.config/perplexity-cli/config.toml`)
+- History logging to `~/.config/perplexity-cli/history/`
 
 ## Requirements
-- Python 3.10+
+- Python 3.11+
 - `requests` library
 
 ## Installation
@@ -97,12 +99,39 @@ Note: This requires `argparse` with argument parser properly configured.
 - `sonar`
 
 ## Configuration
+
 Set the `PERPLEXITY_API_KEY` environment variable with your Perplexity API key:
 ```bash
 export PERPLEXITY_API_KEY="your-api-key"
 ```
 
+### Config file
+
+Create `~/.config/perplexity-cli/config.toml` for persistent defaults:
+
+```toml
+history_enabled = true      # enable history logging (default: false)
+default_format = "json"     # default output format: "json" or "plaintext"
+```
+
+Config values are overridden by CLI flags. A missing or malformed config file is silently ignored.
+
 For full configuration reference, see [docs/config.md](docs/config.md).
+
+## History Logging
+
+When `history_enabled = true` in the config, each successful query is saved as a JSON file:
+
+```
+~/.config/perplexity-cli/history/<year>/<month>/<day>/<HH-MM-SS>_<slug>_<hostname>.json
+```
+
+Each file contains: `timestamp`, `hostname`, `command`, `params`, `response`, `latency_ms`.
+
+Use `--no-history` to skip logging for a single invocation:
+```bash
+perplexity --no-history "sensitive query"
+```
 
 ## License
 MIT
