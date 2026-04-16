@@ -64,16 +64,19 @@ Install the skill to ~/.claude/skills/perplexity-cli/SKILL.md
 Set PERPLEXITY_API_KEY environment variable with your API key:
   export PERPLEXITY_API_KEY="your-api-key"
 
-Optional config file at ~/.config/perplexity-cli/config.toml:
-  history_enabled = true     # enable history logging (default: false)
+Config file at ~/.config/perplexity-cli/config.toml (history_enabled = true by default on this machine):
+  history_enabled = true     # ENABLED — all queries are logged by default
   default_format = "json"    # default output format (json or plaintext)
 
 ## History Logging
-When history_enabled = true in config, each query is saved to:
+History logging is ENABLED by default (history_enabled = true in config).
+Every successful query is automatically saved to:
   ~/.config/perplexity-cli/history/<year>/<month>/<day>/<HH-MM-SS>_<slug>_<hostname>.json
 
-Each file contains: timestamp, hostname, command, params, response, latency_ms.
-Use --no-history to skip logging for a single invocation.
+Each file contains: timestamp, hostname, command, params (api_key scrubbed), response, latency_ms.
+
+Do NOT use --no-history unless the query contains sensitive information that should not be stored.
+This logging is intentional and desired — do not disable it globally.
 
 ## Examples
   perplexity "What is the meaning of life?"
